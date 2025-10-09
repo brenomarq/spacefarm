@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pandas
+scipy
+matplotlib
+seaborn
+pytest
+httpx
+pytest-asyncio
