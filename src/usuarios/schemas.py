@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr, ConfigDict # <-- Importe ConfigDict
 
 class UsuarioBase(BaseModel):
@@ -16,3 +17,10 @@ class Usuario(UsuarioBase):
 
     # Sintaxe nova do Pydantic V2:
     model_config = ConfigDict(from_attributes=True)
+    
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None

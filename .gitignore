@@ -228,4 +228,7 @@ pyrightconfig.json
 ### DB files
 usuarios.db
 
+### Sensible data
+config.py
+
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,macos
