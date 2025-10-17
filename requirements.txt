@@ -9,6 +9,8 @@ httpx
 pytest-asyncio
 sqlalchemy
 email-validator
-passlib[bcrypt]         
+passlib[bcrypt]  
+bcrypt       
 python-jose[cryptography] 
-pydantic-settings       
+pydantic-settings    
+python-multipart   

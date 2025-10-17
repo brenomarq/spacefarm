@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.core.config import settings
 from src.usuarios import models, schemas
-from src.usuarios.router import get_db
+from src.core.database import get_db
 
 # Esta URL informa ao FastAPI qual endpoint o cliente deve usar para obter o token.
 # O caminho é relativo ao prefixo do roteador.

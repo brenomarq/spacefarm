@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from . import models, schemas
-from src.core.database import SessionLocal
+from src.core.database import get_db
 from src.auth.security import get_password_hash
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
@@ -11,14 +11,6 @@ from src.auth.dependencies import get_current_user
 
 # Criamos um roteador em vez de uma nova App FastAPI
 router = APIRouter(tags=["Usuários"])
-
-# Função de dependência para obter a sessão do banco de dados
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Usamos @router em vez de @app para decorar as rotas
 @router.post("/", response_model=schemas.Usuario, status_code=201)
@@ -86,7 +78,12 @@ def obter_usuario(usuario_id: int, db: Session = Depends(get_db)):
     return usuario
 
 @router.put("/{usuario_id}", response_model=schemas.Usuario)
-def atualizar_usuario(usuario_id: int, dados: schemas.UsuarioCreate, db: Session = Depends(get_db)):
+def atualizar_usuario(
+    usuario_id: int, 
+    dados: schemas.UsuarioCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+    ):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -99,7 +96,10 @@ def atualizar_usuario(usuario_id: int, dados: schemas.UsuarioCreate, db: Session
     return usuario
 
 @router.delete("/{usuario_id}")
-def deletar_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def deletar_usuario(
+    usuario_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")

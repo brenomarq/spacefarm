@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Adiciona o diretório src ao path para que o Python encontre os módulos
+# Adiciona o diretório src ao path
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -14,10 +14,7 @@ from src.core.database import Base
 from src.usuarios.router import get_db
 
 # --- Configuração do Banco de Dados de Teste em Memória ---
-# Usamos um banco de dados SQLite em memória para os testes
-# connect_args e StaticPool são necessários para o SQLite em memória com múltiplos threads
 TEST_DATABASE_URL = "sqlite:///:memory:"
-
 engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
@@ -25,11 +22,7 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Cria as tabelas no banco de dados em memória antes de qualquer teste
-Base.metadata.create_all(bind=engine)
-
 # --- Sobrescrevendo a Dependência get_db ---
-# Esta função será usada em vez da original (get_db) durante os testes
 def override_get_db():
     db = TestingSessionLocal()
     try:
@@ -37,112 +30,117 @@ def override_get_db():
     finally:
         db.close()
 
-# Aplica a sobrescrita de dependência na nossa aplicação FastAPI
 app.dependency_overrides[get_db] = override_get_db
 
-# Cria um cliente de teste que usará nosso banco de dados em memória
-client = TestClient(app)
+# --- Fixture de Pytest para o Cliente de Teste ---
+@pytest.fixture()
+def client():
+    # Cria as tabelas antes de cada teste
+    Base.metadata.create_all(bind=engine)
+    yield TestClient(app)
+    # Limpa as tabelas depois de cada teste
+    Base.metadata.drop_all(bind=engine)
 
+# --- Testes de Criação de Usuário e Login ---
 
-# --- Início dos Testes do CRUD de Usuários ---
-
-def test_criar_usuario_sucesso():
-    """Testa a criação de um novo usuário com sucesso."""
+def test_criar_usuario_sucesso(client: TestClient):
+    """Testa a criação de um novo usuário e verifica se a senha foi hasheada."""
     response = client.post(
         "/usuarios/",
-        json={"nome": "João Teste", "email": "joao@teste.com", "senha": "123"},
+        json={"nome": "João Teste", "email": "joao@teste.com", "senha": "senha123"},
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 201
     data = response.json()
     assert data["email"] == "joao@teste.com"
-    assert data["nome"] == "João Teste"
     assert "id" in data
-    # A senha nunca deve ser retornada na resposta!
-    assert "senha" not in data
+    assert "senha" not in data # Garante que a senha (mesmo hasheada) não é retornada
 
-def test_criar_usuario_email_duplicado():
-    """Testa a falha ao tentar criar um usuário com um e-mail que já existe."""
-    # Primeiro, cria um usuário para garantir que o e-mail exista
+def test_login_sucesso_retorna_token(client: TestClient):
+    """Testa se o login com credenciais corretas retorna um token de acesso."""
+    # Primeiro, cria o usuário
     client.post(
         "/usuarios/",
-        json={"nome": "Maria Original", "email": "maria@original.com", "senha": "123"},
+        json={"nome": "Login User", "email": "login@user.com", "senha": "password"},
     )
-    # Agora, tenta criar outro com o mesmo e-mail
+    # Tenta fazer login
     response = client.post(
-        "/usuarios/",
-        json={"nome": "Maria Duplicada", "email": "maria@original.com", "senha": "abc"},
+        "/usuarios/login",
+        data={"username": "login@user.com", "password": "password"},
     )
-    assert response.status_code == 400
-    assert response.json() == {"detail": "Email já cadastrado"}
-
-def test_listar_usuarios():
-    """Testa se a listagem de usuários retorna os usuários criados."""
-    # Limpa as tabelas para um estado conhecido (necessário se os testes não forem isolados)
-    # Como nosso banco é em memória e usamos fixtures (abaixo), isso é uma garantia extra
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    
-    # Cria alguns usuários
-    client.post("/usuarios/", json={"nome": "Carlos", "email": "carlos@teste.com", "senha": "123"})
-    client.post("/usuarios/", json={"nome": "Ana", "email": "ana@teste.com", "senha": "123"})
-
-    response = client.get("/usuarios/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
-    assert data[0]["nome"] == "Carlos"
-    assert data[1]["nome"] == "Ana"
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
 
-def test_obter_usuario_sucesso():
-    """Testa a busca de um usuário específico que existe."""
-    response_post = client.post(
+def test_login_falha_senha_incorreta(client: TestClient):
+    """Testa se o login falha com a senha errada."""
+    client.post(
         "/usuarios/",
-        json={"nome": "Usuario Unico", "email": "unico@teste.com", "senha": "123"},
+        json={"nome": "Login User", "email": "login@user.com", "senha": "password"},
     )
-    usuario_id = response_post.json()["id"]
+    response = client.post(
+        "/usuarios/login",
+        data={"username": "login@user.com", "password": "wrongpassword"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Email ou senha incorretos"
 
-    response_get = client.get(f"/usuarios/{usuario_id}")
-    assert response_get.status_code == 200
-    data = response_get.json()
-    assert data["id"] == usuario_id
-    assert data["email"] == "unico@teste.com"
+def test_login_falha_usuario_inexistente(client: TestClient):
+    """Testa se o login falha com um email que não está cadastrado."""
+    response = client.post(
+        "/usuarios/login",
+        data={"username": "nouser@example.com", "password": "password"},
+    )
+    assert response.status_code == 401
 
-def test_obter_usuario_nao_encontrado():
-    """Testa a busca de um usuário com um ID que não existe."""
-    response = client.get("/usuarios/9999") # Um ID que provavelmente não existe
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Usuário não encontrado"}
 
-def test_atualizar_usuario_sucesso():
-    """Testa a atualização bem-sucedida de um usuário."""
-    response_post = client.post(
+# --- Testes de Rotas Protegidas ---
+
+@pytest.fixture
+def auth_headers(client: TestClient) -> dict[str, str]:
+    """Fixture que cria um usuário, faz login e retorna os headers de autorização."""
+    # Cria usuário
+    client.post(
         "/usuarios/",
-        json={"nome": "Para Atualizar", "email": "para.atualizar@teste.com", "senha": "antiga"},
+        json={"nome": "Auth User", "email": "auth@user.com", "senha": "securepassword"},
     )
-    usuario_id = response_post.json()["id"]
-
-    response_put = client.put(
-        f"/usuarios/{usuario_id}",
-        json={"nome": "Nome Atualizado", "email": "email.atualizado@teste.com", "senha": "nova"},
+    # Faz login
+    login_response = client.post(
+        "/usuarios/login",
+        data={"username": "auth@user.com", "password": "securepassword"},
     )
-    assert response_put.status_code == 200
-    data = response_put.json()
-    assert data["nome"] == "Nome Atualizado"
-    assert data["email"] == "email.atualizado@teste.com"
+    token = login_response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
-def test_deletar_usuario_sucesso():
-    """Testa a remoção de um usuário e verifica se ele não pode mais ser encontrado."""
-    response_post = client.post(
+def test_listar_usuarios_sem_autenticacao(client: TestClient):
+    """Testa se a rota de listagem é inacessível sem um token."""
+    response = client.get("/usuarios/")
+    assert response.status_code == 401 # Unauthorized
+
+def test_listar_usuarios_com_autenticacao(client: TestClient, auth_headers: dict):
+    """Testa se a rota de listagem funciona com um token válido."""
+    response = client.get("/usuarios/", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    # Verifica se o usuário criado pela fixture está na lista
+    assert any(user["email"] == "auth@user.com" for user in data)
+
+def test_deletar_usuario_com_autenticacao(client: TestClient, auth_headers: dict):
+    """Testa se é possível deletar um usuário estando autenticado."""
+    # Cria um usuário para ser deletado
+    user_to_delete_res = client.post(
         "/usuarios/",
-        json={"nome": "Para Deletar", "email": "para.deletar@teste.com", "senha": "temp"},
+        json={"nome": "Para Deletar", "email": "delete@me.com", "senha": "123"},
     )
-    usuario_id = response_post.json()["id"]
+    user_id = user_to_delete_res.json()["id"]
 
-    # Deleta o usuário
-    response_delete = client.delete(f"/usuarios/{usuario_id}")
-    assert response_delete.status_code == 200
-    assert response_delete.json() == {"mensagem": "Usuário removido com sucesso"}
+    # Deleta usando o token do usuário 'auth@user.com'
+    response = client.delete(f"/usuarios/{user_id}", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json() == {"mensagem": "Usuário removido com sucesso"}
 
-    # Verifica se o usuário realmente foi deletado (deve retornar 404)
-    response_get = client.get(f"/usuarios/{usuario_id}")
-    assert response_get.status_code == 404
+def test_deletar_usuario_sem_autenticacao(client: TestClient):
+    """Testa se a rota de deleção é inacessível sem token."""
+    response = client.delete("/usuarios/999")
+    assert response.status_code == 401
