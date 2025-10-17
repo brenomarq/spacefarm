@@ -22,7 +22,7 @@ def load_data() -> pd.DataFrame:
         df = pd.read_csv(DATA_FILE_PATH)
         return df
     except FileNotFoundError:
-        # Em um cenário real, poderíamos logar este erro
+        # Futuramente, podemos adicionar logging aqui
         raise HTTPException(
             status_code=500,
             detail="Arquivo de dados não encontrado. Verifique a configuração do servidor."
@@ -47,7 +47,7 @@ def load_data() -> pd.DataFrame:
 )
 async def get_heatmap(
     parameter: AvailableParameters = Path(
-        ..., # ... significa que é um parâmetro obrigatório
+        ...,
         description="O parâmetro a ser usado para gerar o mapa de calor."
     )
 ):

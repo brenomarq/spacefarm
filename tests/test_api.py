@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from httpx import AsyncClient, ASGITransport # Importar ASGITransport
+from httpx import AsyncClient, ASGITransport
 
 # Adiciona o diretório src ao path para que o Python encontre os módulos
 import sys
@@ -8,8 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.main import app
-
-# --- Testes Síncronos com TestClient (permanece igual) ---
 
 client = TestClient(app)
 
@@ -49,12 +47,9 @@ def test_get_heatmap_invalid_parameter():
     assert error_details["type"] == "enum"
     assert error_details["loc"] == ["path", "parameter"]
 
-# --- Teste Assíncrono com httpx (CORRIGIDO) ---
-
 @pytest.mark.asyncio
 async def test_get_heatmap_async():
     """Testa o endpoint de heatmap de forma assíncrona."""
-    # Correção: O app é passado para um ASGITransport, que é usado pelo client
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/heatmap/ph")
