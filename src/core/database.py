@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base # <-- Caminho novo
 
+# O banco será um arquivo chamado 'usuarios.db' na raiz do projeto
 DATABASE_URL = "sqlite:///./usuarios.db"
 
 engine = create_engine(

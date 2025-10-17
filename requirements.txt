@@ -7,3 +7,5 @@ seaborn
 pytest
 httpx
 pytest-asyncio
+sqlalchemy
+email-validator
