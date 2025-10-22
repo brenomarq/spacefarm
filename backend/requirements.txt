@@ -9,3 +9,7 @@ httpx
 pytest-asyncio
 sqlalchemy
 email-validator
+passlib[argon2]
+pydantic-settings
+python-jose[cryptography]
+python-multipart

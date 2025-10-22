@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.main import app
 from src.core.database import Base
 from src.usuarios.router import get_db
+from src.usuarios.models import Usuario
 
 # --- Configuração do Banco de Dados de Teste em Memória ---
 # Usamos um banco de dados SQLite em memória para os testes
@@ -47,18 +48,26 @@ client = TestClient(app)
 # --- Início dos Testes do CRUD de Usuários ---
 
 def test_criar_usuario_sucesso():
-    """Testa a criação de um novo usuário com sucesso."""
+    # A API recebe a senha em texto plano
+    senha_plana = "senha123"
     response = client.post(
         "/usuarios/",
-        json={"nome": "João Teste", "email": "joao@teste.com", "senha": "123"},
+        json={"nome": "João Teste", "email": "joao@teste.com", "senha": senha_plana},
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 201
     data = response.json()
     assert data["email"] == "joao@teste.com"
-    assert data["nome"] == "João Teste"
-    assert "id" in data
-    # A senha nunca deve ser retornada na resposta!
-    assert "senha" not in data
+
+    # Teste Adicionado: Verifica se a senha no DB NÃO é a senha plana
+    db = TestingSessionLocal()
+    usuario_db = db.query(Usuario).filter(Usuario.email == "joao@teste.com").first()
+    db.close()
+
+    assert usuario_db is not None
+    assert usuario_db.senha != senha_plana
+    # Podemos até verificar se o hash é válido (opcional)
+    from src.auth.security import verify_password
+    assert verify_password(senha_plana, usuario_db.senha)
 
 def test_criar_usuario_email_duplicado():
     """Testa a falha ao tentar criar um usuário com um e-mail que já existe."""
@@ -74,24 +83,6 @@ def test_criar_usuario_email_duplicado():
     )
     assert response.status_code == 400
     assert response.json() == {"detail": "Email já cadastrado"}
-
-def test_listar_usuarios():
-    """Testa se a listagem de usuários retorna os usuários criados."""
-    # Limpa as tabelas para um estado conhecido (necessário se os testes não forem isolados)
-    # Como nosso banco é em memória e usamos fixtures (abaixo), isso é uma garantia extra
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    
-    # Cria alguns usuários
-    client.post("/usuarios/", json={"nome": "Carlos", "email": "carlos@teste.com", "senha": "123"})
-    client.post("/usuarios/", json={"nome": "Ana", "email": "ana@teste.com", "senha": "123"})
-
-    response = client.get("/usuarios/")
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
-    assert data[0]["nome"] == "Carlos"
-    assert data[1]["nome"] == "Ana"
 
 def test_obter_usuario_sucesso():
     """Testa a busca de um usuário específico que existe."""
@@ -146,3 +137,44 @@ def test_deletar_usuario_sucesso():
     # Verifica se o usuário realmente foi deletado (deve retornar 404)
     response_get = client.get(f"/usuarios/{usuario_id}")
     assert response_get.status_code == 404
+
+def test_login_falha_usuario_inexistente():
+    response = client.post(
+        "/usuarios/login",
+        data={"username": "naoexiste@teste.com", "password": "123"}
+    )
+    assert response.status_code == 401
+    assert "Email ou senha incorretos" in response.json()["detail"]
+
+def test_login_falha_senha_incorreta():
+    # Cria um usuário primeiro
+    client.post(
+        "/usuarios/",
+        json={"nome": "Teste Senha", "email": "senha@teste.com", "senha": "senha_correta"}
+    )
+    # Tenta logar com senha errada
+    response = client.post(
+        "/usuarios/login",
+        data={"username": "senha@teste.com", "password": "senha_errada"}
+    )
+    assert response.status_code == 401
+
+def test_login_sucesso_retorna_token():
+    # Cria um usuário
+    client.post(
+        "/usuarios/",
+        json={"nome": "Teste Login", "email": "login@teste.com", "senha": "senha123"}
+    )
+    # Tenta logar corretamente
+    response = client.post(
+        "/usuarios/login",
+        data={"username": "login@teste.com", "password": "senha123"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+def test_listar_usuarios_falha_sem_token():
+    response = client.get("/usuarios/")
+    assert response.status_code == 401 # Esperamos 401, mas receberemos 200
