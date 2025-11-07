@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict # <-- Importe ConfigDict
+from typing import Optional
 
 class UsuarioBase(BaseModel):
     nome: str
@@ -16,3 +17,17 @@ class Usuario(UsuarioBase):
 
     # Sintaxe nova do Pydantic V2:
     model_config = ConfigDict(from_attributes=True)
+
+class Token(BaseModel):
+    """
+Recipiente para o token de acesso retornado ao usuário.
+    """
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    """
+Define o conteúdo (payload) esperado dentro do token JWT.
+    """
+    email: Optional[str] = None

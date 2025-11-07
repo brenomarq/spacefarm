@@ -9,3 +9,15 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+def get_db():
+    """
+    Dependência do FastAPI para gerenciar a sessão do banco de dados.
+    Isso garante que a sessão seja aberta e fechada corretamente
+    para cada requisição.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
