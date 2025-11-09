@@ -1,15 +1,10 @@
 fastapi
 uvicorn[standard]
-pandas
-scipy
-matplotlib
-seaborn
-pytest
-httpx
-pytest-asyncio
 sqlalchemy
-email-validator
-passlib[argon2]
-pydantic-settings
-python-jose[cryptography]
-python-multipart
+pymysql           # Driver para MySQL
+pydantic-settings # Para carregar o .env
+
+# Dependências de teste
+pytest
+pytest-asyncio    # Para testes async
+httpx             # Para fazer requisições HTTP nos testes
