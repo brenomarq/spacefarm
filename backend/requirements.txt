@@ -1,10 +1,10 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
-pymysql           # Driver para MySQL
-pydantic-settings # Para carregar o .env
-
-# Dependências de teste
-pytest
-pytest-asyncio    # Para testes async
-httpx             # Para fazer requisições HTTP nos testes
+sqlalchemy[asyncio]
+asyncmy           # Driver MySQL assíncrono
+pydantic[email]
+passlib[bcrypt]   # Para hash de senhas
+argon2-cffi  # Adicione esta linha
+python-jose[cryptography] # Para JWT
+python-dotenv     # Para ler o .env
+python-multipart 
