@@ -1,15 +1,10 @@
 fastapi
 uvicorn[standard]
-pandas
-scipy
-matplotlib
-seaborn
-pytest
-httpx
-pytest-asyncio
-sqlalchemy
-email-validator
-passlib[argon2]
-pydantic-settings
-python-jose[cryptography]
-python-multipart
+sqlalchemy[asyncio]
+asyncmy           # Driver MySQL assíncrono
+pydantic[email]
+passlib[bcrypt]   # Para hash de senhas
+argon2-cffi  # Adicione esta linha
+python-jose[cryptography] # Para JWT
+python-dotenv     # Para ler o .env
+python-multipart 
